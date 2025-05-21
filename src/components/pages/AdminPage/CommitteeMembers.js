@@ -329,7 +329,7 @@ const CommitteeMembers = () => {
                   <td>{member.name}</td>
                   <td>{member.email}</td>
                   <td>{member.phone}</td>
-                  <td>{member.country ? formatDisplayName(member.country.countryName) : 'N/A'}</td>
+                  <td>{member.country ? formatDisplayName(member.country.name) : 'N/A'}</td>
                   <td>{member.currentPositionInYourRRA}</td>
                   <td>{member.positionInERA ? formatDisplayName(member.positionInERA.positionName) : 'N/A'}</td>
                   <td>{member.revenueAuthority ? formatDisplayName(member.revenueAuthority.authorityName) : 'N/A'}</td>
@@ -427,7 +427,7 @@ const CommitteeMembers = () => {
               <option value="">Select country</option>
               {countries.map(country => (
                 <option key={country.id} value={country.id}>
-                  {formatDisplayName(country.countryName)}
+                  {formatDisplayName(country.name)}
                 </option>
               ))}
             </select>

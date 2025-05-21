@@ -4,6 +4,8 @@ import CommissionerGeneral from './CommissionerGeneral';
 import CommitteeMembers from './CommitteeMembers';
 import PositionsContent from './PositionsContent';
 
+import ReactCountryFlag from 'react-country-flag';
+
 const AdminDashboard = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('dashboard');
   const [countries, setCountries] = useState([]);
@@ -87,42 +89,42 @@ const AdminDashboard = () => {
   
     return (
       <div className="dashboard-content">
-        <div className="data-section">
-          <h3>Countries & Revenue Authorities</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Country</th>
-                <th>Revenue Authority</th>
-              </tr>
-            </thead>
-            <tbody>
-              {countries.length > 0 ? (
-                countries.map((country) => (
-                  <tr key={country.id}>
-                    <td>
-                      {typeof country.countryName === 'string' 
-                        ? formatDisplayName(country.countryName)
-                        : (country.countryName?.toString() || 'N/A')}
-                    </td>
-                    <td>
-                      {getRevenueAuthorityByCountry(country.id).map(auth => (
-                        <div key={auth.id}>
-                          {typeof auth.authorityName === 'string' 
-                            ? formatDisplayName(auth.authorityName)
-                            : (auth.authorityName?.toString() || 'N/A')}
-                        </div>
-                      ))}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="3">No countries found</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="countries-grid">
+          {countries.length > 0 ? (
+            countries.map((country) => (
+              <div key={country.id} className="country-card">
+                <div className="country-flag">
+                  <ReactCountryFlag 
+                    countryCode={country.isoCode} 
+                    svg 
+                    style={{
+                      width: '3em',
+                      height: '3em',
+                    }}
+                    title={country.name}
+                  />
+                </div>
+                <div className="country-info">
+                  <h3>{formatDisplayName(country.name)}</h3>
+                  <div className="revenue-authorities">
+                    {getRevenueAuthorityByCountry(country.id).length > 0 ? (
+                      <ul>
+                        {getRevenueAuthorityByCountry(country.id).map(auth => (
+                          <li key={auth.id}>
+                            {formatDisplayName(auth.authorityName)}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No revenue authorities</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="no-countries">No countries found</div>
+          )}
         </div>
       </div>
     );
@@ -150,7 +152,7 @@ const AdminDashboard = () => {
   const getPageTitle = () => {
     switch (activeMenuItem) {
       case 'dashboard':
-        return 'Revenue Authorities';
+        return 'Countries and Revenue Authorities';
       case 'positions':
         return 'Positions';
       case 'commissioner':

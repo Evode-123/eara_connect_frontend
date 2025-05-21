@@ -220,7 +220,7 @@ const CommissionerGeneral = () => {
                   <td>{commissioner.cgName}</td>
                   <td>{commissioner.cgEmail}</td>
                   <td>{commissioner.cgPhone}</td>
-                  <td>{commissioner.country ? formatDisplayName(commissioner.country.countryName) : 'N/A'}</td>
+                  <td>{commissioner.country ? formatDisplayName(commissioner.country.name) : 'N/A'}</td>
                   <td>{commissioner.revenueAuthority ? formatDisplayName(commissioner.revenueAuthority.authorityName) : 'N/A'}</td>
                   <td>{formatDisplayName(commissioner.memberType)}</td>
                 </tr>
@@ -302,7 +302,7 @@ const CommissionerGeneral = () => {
               <option value="">Select country</option>
               {countries.map(country => (
                 <option key={country.id} value={country.id}>
-                  {formatDisplayName(country.countryName)}
+                  {formatDisplayName(country.name)}
                 </option>
               ))}
             </select>
