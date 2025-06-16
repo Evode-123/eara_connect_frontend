@@ -3,7 +3,8 @@ import AdminSidebar from './AdminSidebar';
 import CommissionerGeneral from './CommissionerGeneral';
 import CommitteeMembers from './CommitteeMembers';
 import PositionsContent from './PositionsContent';
-
+import MeetingInvitations from './MeetingInvitations'; // Import your MeetingInvitations component
+import AllMeetings from './AllMeetings'
 import ReactCountryFlag from 'react-country-flag';
 
 const AdminDashboard = () => {
@@ -149,16 +150,28 @@ const AdminDashboard = () => {
     return <CommitteeMembers />;
   };
 
+  const renderMeetingInvitations = () => {
+    return <MeetingInvitations />;
+  };
+
+  const renderAllMeetings = () => {
+    return <AllMeetings />;
+  };
+
   const getPageTitle = () => {
     switch (activeMenuItem) {
       case 'dashboard':
         return 'Countries and Revenue Authorities';
       case 'positions':
-        return 'Positions';
+        return 'Committee Positions';
       case 'commissioner':
         return 'Commissioner General';
       case 'committee':
         return 'Committee Member';
+      case 'meeting-invitations':
+        return 'Meeting Invitations';
+      case 'all-meetings':
+        return 'Meetings';
       default:
         return 'Dashboard';
     }
@@ -174,6 +187,10 @@ const AdminDashboard = () => {
         return renderCommissionerGeneral();
       case 'committee':
         return renderCommitteeMembers();
+      case 'meeting-invitations':
+        return renderMeetingInvitations();
+      case 'all-meetings':
+        return renderAllMeetings();
       default:
         return renderDashboard();
     }

@@ -19,7 +19,7 @@ const SecretarySidebar = ({ activeMenuItem, handleMenuItemClick, className }) =>
             className={activeMenuItem === 'positions' ? 'active' : ''}
             onClick={() => handleMenuItemClick('positions')}
           >
-            <span>👥</span> Positions
+            <span>👥</span> Committee
           </li>
           <li
             className={activeMenuItem === 'meeting' ? 'active' : ''}

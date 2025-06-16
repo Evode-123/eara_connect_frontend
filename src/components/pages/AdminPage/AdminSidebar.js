@@ -1,5 +1,4 @@
 import React from 'react';
-import '../../../style/AdminDashboard.css';
 
 const AdminSidebar = ({ activeMenuItem, handleMenuItemClick }) => {
   return (
@@ -19,7 +18,7 @@ const AdminSidebar = ({ activeMenuItem, handleMenuItemClick }) => {
             className={activeMenuItem === 'positions' ? 'active' : ''}
             onClick={() => handleMenuItemClick('positions')}
           >
-            <span>👥</span> Positions
+            <span>👥</span> Committee
           </li>
           <li
             className={activeMenuItem === 'commissioner' ? 'active' : ''}
@@ -32,6 +31,20 @@ const AdminSidebar = ({ activeMenuItem, handleMenuItemClick }) => {
             onClick={() => handleMenuItemClick('committee')}
           >
             <span>👥</span> Committee Member
+          </li>
+          
+          {/* Meeting Management Section */}
+          <li 
+            className={activeMenuItem === 'meeting-invitations' ? 'active' : ''}
+            onClick={() => handleMenuItemClick('meeting-invitations')}
+          >
+            <span>📧</span> Send Invitations
+          </li>
+          <li
+            className={activeMenuItem === 'all-meetings' ? 'active' : ''}
+            onClick={() => handleMenuItemClick('all-meetings')}
+          >
+            <span>📅</span> All Meetings
           </li>
         </ul>
       </div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import '../../../style/AdminDashboard.css';
-import axiosInstance from '../../../config/axiosConfig'; // Assuming this is the path to your axios instance
+import axiosInstance from '../../../config/axiosConfig';
 
 const CommissionerGeneral = () => {
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'register'
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'register', or 'edit'
   const [commissioners, setCommissioners] = useState([]);
+  const [editingCommissioner, setEditingCommissioner] = useState(null);
   const [formData, setFormData] = useState({
     cgName: '',
     cgPhone: '',
@@ -19,8 +20,10 @@ const CommissionerGeneral = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [commissionerToDelete, setCommissionerToDelete] = useState(null);
 
-  // Member type options
+  // Member type options - Updated to match backend enum
   const memberTypeOptions = [
     { value: 'HEAD', label: 'Head' },
     { value: 'SECRETARY', label: 'Secretary' },
@@ -75,6 +78,8 @@ const CommissionerGeneral = () => {
         } finally {
           setLoading(false);
         }
+      } else {
+        setRevenueAuthorities([]);
       }
     };
 
@@ -87,6 +92,14 @@ const CommissionerGeneral = () => {
       ...prev,
       [name]: value
     }));
+    
+    // Reset revenue authority when country changes
+    if (name === 'countryId') {
+      setFormData(prev => ({
+        ...prev,
+        revenueAuthorityId: ''
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -97,63 +110,134 @@ const CommissionerGeneral = () => {
 
     try {
       // Validate form data before sending
-      if (!formData.cgName || !formData.cgEmail || !formData.cgPhone || 
-          !formData.countryId || !formData.revenueAuthorityId || !formData.memberType) {
+      if (!formData.cgName || !formData.cgEmail || !formData.cgPhone || !formData.memberType) {
         throw new Error('Please fill in all required fields');
       }
 
-      // Create the payload with the CORRECT field names expected by the backend
+      // For registration, also validate country and revenue authority
+      if (viewMode === 'register' && (!formData.countryId || !formData.revenueAuthorityId)) {
+        throw new Error('Please select country and revenue authority');
+      }
+
+      // Create the payload matching backend CommissionerGeneral model
       const payload = {
-        cgName: formData.cgName,
-        cgPhone: formData.cgPhone,
-        cgEmail: formData.cgEmail,
-        memberType: formData.memberType
+        cgName: formData.cgName.trim(),
+        cgPhone: formData.cgPhone.trim(),
+        cgEmail: formData.cgEmail.trim()
       };
 
-      const response = await axiosInstance.post(
-        `/commissioners/country/${formData.countryId}/authority/${formData.revenueAuthorityId}?memberType=${formData.memberType}`,
-        payload
-      );
+      let response;
+      if (viewMode === 'edit') {
+        // Update existing commissioner - send memberType as query param
+        const updateUrl = formData.memberType 
+          ? `/api/commissioners/${editingCommissioner.id}?memberType=${formData.memberType}`
+          : `/api/commissioners/${editingCommissioner.id}`;
+          
+        response = await axiosInstance.put(updateUrl, payload);
+        setSuccess('Commissioner updated successfully!');
+      } else {
+        // Create new commissioner - all params in URL as per backend
+        response = await axiosInstance.post(
+          `/commissioners/country/${formData.countryId}/authority/${formData.revenueAuthorityId}?memberType=${formData.memberType}`,
+          payload
+        );
+        setSuccess('Commissioner registered successfully!');
+      }
 
       console.log('Success response:', response.data);
-      setSuccess(true);
       
       // Reset form
-      setFormData({
-        cgName: '',
-        cgPhone: '',
-        cgEmail: '',
-        countryId: '',
-        revenueAuthorityId: '',
-        memberType: ''
-      });
+      resetForm();
       
       // Refresh the commissioner list
-      fetchCommissioners();
+      await fetchCommissioners();
       
-      // Switch back to list view after successful registration
+      // Switch back to list view after successful operation
       setTimeout(() => {
         setViewMode('list');
-      }, 999);
+        setSuccess(false);
+      }, 2000);
       
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.message || 'Failed to register commissioner');
+      console.error('Operation error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to save commissioner';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      cgName: '',
+      cgPhone: '',
+      cgEmail: '',
+      countryId: '',
+      revenueAuthorityId: '',
+      memberType: ''
+    });
+    setEditingCommissioner(null);
+  };
+
+  // Handle edit commissioner
+  const handleEdit = (commissioner) => {
+    setEditingCommissioner(commissioner);
+    setFormData({
+      cgName: commissioner.cgName || '',
+      cgPhone: commissioner.cgPhone || '',
+      cgEmail: commissioner.cgEmail || '',
+      countryId: commissioner.country?.id || '',
+      revenueAuthorityId: commissioner.revenueAuthority?.id || '',
+      memberType: commissioner.memberType || ''
+    });
+    setViewMode('edit');
+    setError(null);
+    setSuccess(false);
+  };
+
+  // Handle delete commissioner
+  const handleDelete = (commissioner) => {
+    setCommissionerToDelete(commissioner);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!commissionerToDelete) return;
+
+    try {
+      setLoading(true);
+      await axiosInstance.delete(`/api/commissioners/${commissionerToDelete.id}`);
+      setSuccess('Commissioner deleted successfully!');
+      await fetchCommissioners();
+      setShowDeleteModal(false);
+      setCommissionerToDelete(null);
+      
+      setTimeout(() => {
+        setSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError(err.response?.data?.message || 'Failed to delete commissioner');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setCommissionerToDelete(null);
+  };
+
   // Function to get country name by ID
   const getCountryName = (countryId) => {
     const country = countries.find(c => c.id === countryId);
-    return country ? country.countryName : 'Unknown';
+    return country ? country.countryName || country.name : 'Unknown';
   };
   
   // Function to get authority name by ID
   const getAuthorityName = (authorityId) => {
     const authority = revenueAuthorities.find(a => a.id === authorityId);
-    return authority ? authority.authorityName : 'Unknown';
+    return authority ? authority.authorityName || authority.name : 'Unknown';
   };
 
   // Format display name from backend format
@@ -162,12 +246,13 @@ const CommissionerGeneral = () => {
     if (value.includes(' ')) return value;
     return value
       .split('_')
-      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
   };
 
   // Switch to register mode
   const handleRegisterClick = () => {
+    resetForm();
     setViewMode('register');
     setError(null);
     setSuccess(false);
@@ -176,8 +261,49 @@ const CommissionerGeneral = () => {
   // Switch back to list mode
   const handleBackToList = () => {
     setViewMode('list');
+    resetForm();
     setError(null);
     setSuccess(false);
+  };
+
+  // Render Delete Modal
+  const renderDeleteModal = () => {
+    if (!showDeleteModal) return null;
+
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content delete-modal">
+          <div className="modal-header">
+            <h3>Confirm Delete</h3>
+          </div>
+          <div className="modal-body">
+            <p>Are you sure you want to delete this commissioner?</p>
+            <div className="commissioner-details">
+              <strong>{commissionerToDelete?.cgName}</strong>
+              <br />
+              <span>{commissionerToDelete?.cgEmail}</span>
+            </div>
+            <p className="warning-text">This action cannot be undone.</p>
+          </div>
+          <div className="modal-actions">
+            <button 
+              className="btn btn-secondary" 
+              onClick={cancelDelete}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button 
+              className="btn btn-danger" 
+              onClick={confirmDelete}
+              disabled={loading}
+            >
+              {loading ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Render commissioner list view
@@ -194,39 +320,65 @@ const CommissionerGeneral = () => {
             className="action-btn add-btn"
             onClick={handleRegisterClick}
           >
-            Register New Commissioner
+            + New Commissioner
           </button>
         </div>
 
         {error && <div className="error">{error}</div>}
+        {success && <div className="success">{success}</div>}
         
         {commissioners.length === 0 ? (
           <div className="no-data">No commissioners have been registered yet.</div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Country</th>
-                <th>Revenue Authority</th>
-                <th>Member Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {commissioners.map(commissioner => (
-                <tr key={commissioner.id}>
-                  <td>{commissioner.cgName}</td>
-                  <td>{commissioner.cgEmail}</td>
-                  <td>{commissioner.cgPhone}</td>
-                  <td>{commissioner.country ? formatDisplayName(commissioner.country.name) : 'N/A'}</td>
-                  <td>{commissioner.revenueAuthority ? formatDisplayName(commissioner.revenueAuthority.authorityName) : 'N/A'}</td>
-                  <td>{formatDisplayName(commissioner.memberType)}</td>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Country</th>
+                  <th>Revenue Authority</th>
+                  <th>Member Type</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {commissioners.map(commissioner => (
+                  <tr key={commissioner.id}>
+                    <td>{commissioner.cgName}</td>
+                    <td>{commissioner.cgEmail}</td>
+                    <td>{commissioner.cgPhone}</td>
+                    <td>{commissioner.country ? formatDisplayName(commissioner.country.name || commissioner.country.countryName) : 'N/A'}</td>
+                    <td>{commissioner.revenueAuthority ? formatDisplayName(commissioner.revenueAuthority.authorityName || commissioner.revenueAuthority.name) : 'N/A'}</td>
+                    <td>
+                      <span className={`member-type-badge ${commissioner.memberType?.toLowerCase() || 'member'}`}>
+                        {formatDisplayName(commissioner.memberType || 'Member')}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          className="btn btn-edit"
+                          onClick={() => handleEdit(commissioner)}
+                          title="Edit Commissioner"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          className="btn btn-delete"
+                          onClick={() => handleDelete(commissioner)}
+                          title="Delete Commissioner"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     );
@@ -234,6 +386,8 @@ const CommissionerGeneral = () => {
 
   // Render registration form view
   const renderRegistrationForm = () => {
+    const isEditMode = viewMode === 'edit';
+    
     return (
       <div className="registration-section">
         <div className="form-header">
@@ -241,17 +395,17 @@ const CommissionerGeneral = () => {
             className="back-btn"
             onClick={handleBackToList}
           >
-            ← Back to Commissioners List
+            ← Back
           </button>
-          <h3>Register Commissioner General</h3>
+          <h3>{isEditMode ? 'Edit Commissioner General' : 'Register Commissioner General'}</h3>
         </div>
         
         {error && <div className="error">{error}</div>}
-        {success && <div className="success">Commissioner General registered successfully!</div>}
+        {success && <div className="success">{success}</div>}
         
         <form className="registration-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="cgName">Full Name</label>
+            <label htmlFor="cgName">Full Name *</label>
             <input
               type="text"
               id="cgName"
@@ -264,7 +418,7 @@ const CommissionerGeneral = () => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="cgEmail">Email</label>
+            <label htmlFor="cgEmail">Email *</label>
             <input
               type="email"
               id="cgEmail"
@@ -277,7 +431,7 @@ const CommissionerGeneral = () => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="cgPhone">Phone Number</label>
+            <label htmlFor="cgPhone">Phone Number *</label>
             <input
               type="tel"
               id="cgPhone"
@@ -289,46 +443,50 @@ const CommissionerGeneral = () => {
             />
           </div>
           
-          <div className="form-group">
-            <label htmlFor="countryId">Country</label>
-            <select
-              id="countryId"
-              name="countryId"
-              value={formData.countryId}
-              onChange={handleChange}
-              required
-              disabled={loading}
-            >
-              <option value="">Select country</option>
-              {countries.map(country => (
-                <option key={country.id} value={country.id}>
-                  {formatDisplayName(country.name)}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!isEditMode && (
+            <>
+              <div className="form-group">
+                <label htmlFor="countryId">Country *</label>
+                <select
+                  id="countryId"
+                  name="countryId"
+                  value={formData.countryId}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select country</option>
+                  {countries.map(country => (
+                    <option key={country.id} value={country.id}>
+                      {formatDisplayName(country.name || country.countryName)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="revenueAuthorityId">Revenue Authority *</label>
+                <select
+                  id="revenueAuthorityId"
+                  name="revenueAuthorityId"
+                  value={formData.revenueAuthorityId}
+                  onChange={handleChange}
+                  required
+                  disabled={!formData.countryId || loading}
+                >
+                  <option value="">Select revenue authority</option>
+                  {revenueAuthorities.map(authority => (
+                    <option key={authority.id} value={authority.id}>
+                      {formatDisplayName(authority.authorityName || authority.name)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
           
           <div className="form-group">
-            <label htmlFor="revenueAuthorityId">Revenue Authority</label>
-            <select
-              id="revenueAuthorityId"
-              name="revenueAuthorityId"
-              value={formData.revenueAuthorityId}
-              onChange={handleChange}
-              required
-              disabled={!formData.countryId || loading}
-            >
-              <option value="">Select revenue authority</option>
-              {revenueAuthorities.map(authority => (
-                <option key={authority.id} value={authority.id}>
-                  {formatDisplayName(authority.authorityName)}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="memberType">Member Type</label>
+            <label htmlFor="memberType">Member Type *</label>
             <select
               id="memberType"
               name="memberType"
@@ -350,7 +508,7 @@ const CommissionerGeneral = () => {
             className="submit-btn"
             disabled={loading}
           >
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? (isEditMode ? 'Updating...' : 'Registering...') : (isEditMode ? 'Update Commissioner' : 'Register Commissioner')}
           </button>
         </form>
       </div>
@@ -360,6 +518,7 @@ const CommissionerGeneral = () => {
   return (
     <div className="positions-section commissioner-section">
       {viewMode === 'list' ? renderCommissionersList() : renderRegistrationForm()}
+      {renderDeleteModal()}
     </div>
   );
 };

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import SecretarySidebar from './SecretarySidebar';
 import MeetingMinuteForm from './MeetingMinuteForm';
 import '../../../style/SecretaryDashboard.css';  // Updated CSS import
+import ReactCountryFlag from 'react-country-flag';
+import PositionsContent from './PositionsContent'; // Import the PositionsContent component
 
 const SecretaryDashboard = () => {
   const [activeMenuItem, setActiveMenuItem] = useState('dashboard');
@@ -123,76 +125,56 @@ const SecretaryDashboard = () => {
     if (error) return <div className="error">{error}</div>;
   
     return (
-      <div className="dashboard-content">
-        <div className="data-section">
-          <h3>Countries & Revenue Authorities</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Country</th>
-                <th>Revenue Authority</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div className="dashboard-content">
+            <div className="countries-grid">
               {countries.length > 0 ? (
                 countries.map((country) => (
-                  <tr key={country.id}>
-                    <td>
-                      {typeof country.countryName === 'string' 
-                        ? formatDisplayName(country.countryName)
-                        : (country.countryName?.toString() || 'N/A')}
-                    </td>
-                    <td>
-                      {getRevenueAuthorityByCountry(country.id).map(auth => (
-                        <div key={auth.id}>
-                          {typeof auth.authorityName === 'string' 
-                            ? formatDisplayName(auth.authorityName)
-                            : (auth.authorityName?.toString() || 'N/A')}
-                        </div>
-                      ))}
-                    </td>
-                  </tr>
+                  <div key={country.id} className="country-card">
+                    <div className="country-flag">
+                      <ReactCountryFlag 
+                        countryCode={country.isoCode} 
+                        svg 
+                        style={{
+                          width: '3em',
+                          height: '3em',
+                        }}
+                        title={country.name}
+                      />
+                    </div>
+                    <div className="country-info">
+                      <h3>{formatDisplayName(country.name)}</h3>
+                      <div className="revenue-authorities">
+                        {getRevenueAuthorityByCountry(country.id).length > 0 ? (
+                          <ul>
+                            {getRevenueAuthorityByCountry(country.id).map(auth => (
+                              <li key={auth.id}>
+                                {formatDisplayName(auth.authorityName)}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p>No revenue authorities</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="3">No countries found</td>
-                </tr>
+                <div className="no-countries">No countries found</div>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
+            </div>
+          </div>
+        );
+      };
 
   const renderPositions = () => {
-    if (loading) return <div className="loading">Loading positions data...</div>;
-    if (error) return <div className="error">{error}</div>;
-
     return (
-      <div className="positions-section">
-        <h3>Available Positions</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Position Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {positions.length > 0 ? (
-              positions.map((position) => (
-                <tr key={position.id}>
-                  <td>{position.displayName || formatDisplayName(position.positionName)}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="2">No positions found</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <PositionsContent
+        positions={positions}
+        loading={loading}
+        error={error}
+        formatDisplayName={formatDisplayName}
+      />
     );
   };
 
@@ -214,7 +196,7 @@ const SecretaryDashboard = () => {
       case 'dashboard':
         return 'Revenue Authorities';
       case 'positions':
-        return 'Positions';
+        return 'Committee Positions';
       case 'meeting':
         return 'Take Meeting Minute';
       default:

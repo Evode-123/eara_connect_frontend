@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import '../../../style/AdminDashboard.css';
 
 const CommitteeMembers = () => {
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'register'
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'register', or 'edit'
   const [members, setMembers] = useState([]);
+  const [editingMember, setEditingMember] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -23,6 +24,8 @@ const CommitteeMembers = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
 
   // Member type options
   const memberTypeOptions = [
@@ -165,57 +168,101 @@ const CommitteeMembers = () => {
         throw new Error('Authentication token not found. Please log in again.');
       }
 
+      const isEditMode = viewMode === 'edit';
+
       // Validate form data before sending
       if (!formData.name || !formData.email || !formData.phone || 
-          !formData.countryId || !formData.revenueAuthorityId || 
-          !formData.positionId || !formData.memberType || 
           !formData.currentPositionInYourRRA || !formData.appointedDate || 
-          !appointedLetter) {
+          !formData.memberType) {
+        throw new Error('Please fill in all required fields');
+      }
+
+      // For new registrations, validate all fields including file upload
+      if (!isEditMode && (!formData.countryId || !formData.revenueAuthorityId || 
+          !formData.positionId || !appointedLetter)) {
         throw new Error('Please fill in all required fields and upload appointment letter');
       }
 
-      // Create form data object for multipart/form-data
-      const formDataObj = new FormData();
-      
-      // Create the member object with the correct field names
-      const memberObj = {
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email,
-        currentPositionInYourRRA: formData.currentPositionInYourRRA,
-        appointedDate: formData.appointedDate
-      };
-      
-      // Convert member object to JSON string and append to FormData
-      formDataObj.append('member', JSON.stringify(memberObj));
-      
-      // Append the appointed letter file
-      formDataObj.append('appointedLetter', appointedLetter);
+      let response;
 
-      const url = `http://localhost:8080/api/committee-members/country/${formData.countryId}/position/${formData.positionId}/authority/${formData.revenueAuthorityId}?memberType=${formData.memberType}`;
-      
-      console.log('Sending request to:', url);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-          // NOTE: Do not set Content-Type header when sending FormData
-        },
-        body: formDataObj
-      });
+      if (isEditMode) {
+        // Update existing member - only basic info can be updated
+        const updatePayload = {
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          currentPositionInYourRRA: formData.currentPositionInYourRRA,
+          appointedDate: formData.appointedDate,
+          memberType: formData.memberType
+        };
 
-      if (!response.ok) {
-        // Try to parse error response
-        let errorMessage = 'Failed to register committee member';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (jsonError) {
-          // If can't parse JSON, use status text
-          errorMessage = `Error ${response.status}: ${response.statusText || errorMessage}`;
+        response = await fetch(`http://localhost:8080/api/committee-members/${editingMember.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updatePayload)
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to update committee member';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (jsonError) {
+            errorMessage = `Error ${response.status}: ${response.statusText || errorMessage}`;
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+
+        setSuccess('Committee Member updated successfully!');
+      } else {
+        // Create form data object for multipart/form-data
+        const formDataObj = new FormData();
+        
+        // Create the member object with the correct field names
+        const memberObj = {
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email,
+          currentPositionInYourRRA: formData.currentPositionInYourRRA,
+          appointedDate: formData.appointedDate
+        };
+        
+        // Convert member object to JSON string and append to FormData
+        formDataObj.append('member', JSON.stringify(memberObj));
+        
+        // Append the appointed letter file
+        formDataObj.append('appointedLetter', appointedLetter);
+
+        const url = `http://localhost:8080/api/committee-members/country/${formData.countryId}/position/${formData.positionId}/authority/${formData.revenueAuthorityId}?memberType=${formData.memberType}`;
+        
+        console.log('Sending request to:', url);
+        
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+            // NOTE: Do not set Content-Type header when sending FormData
+          },
+          body: formDataObj
+        });
+
+        if (!response.ok) {
+          // Try to parse error response
+          let errorMessage = 'Failed to register committee member';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (jsonError) {
+            // If can't parse JSON, use status text
+            errorMessage = `Error ${response.status}: ${response.statusText || errorMessage}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        setSuccess('Committee Member registered successfully!');
       }
 
       // Try to parse the successful response
@@ -227,24 +274,8 @@ const CommitteeMembers = () => {
         console.log('No JSON in success response');
       }
 
-      setSuccess(true);
       // Reset form
-      setFormData({
-        name: '',
-        phone: '',
-        email: '',
-        currentPositionInYourRRA: '',
-        positionId: '',
-        appointedDate: '',
-        countryId: '',
-        revenueAuthorityId: '',
-        memberType: ''
-      });
-      setAppointedLetter(null);
-      
-      // Reset file input
-      const fileInput = document.getElementById('appointedLetter');
-      if (fileInput) fileInput.value = '';
+      resetForm();
       
       // Refresh the committee members list
       fetchCommitteeMembers();
@@ -252,14 +283,95 @@ const CommitteeMembers = () => {
       // Switch back to list view after successful registration
       setTimeout(() => {
         setViewMode('list');
-      }, 1000);
+      }, 1500);
       
     } catch (err) {
-      console.error('Registration error:', err);
+      console.error('Operation error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      phone: '',
+      email: '',
+      currentPositionInYourRRA: '',
+      positionId: '',
+      appointedDate: '',
+      countryId: '',
+      revenueAuthorityId: '',
+      memberType: ''
+    });
+    setAppointedLetter(null);
+    setEditingMember(null);
+    
+    // Reset file input
+    const fileInput = document.getElementById('appointedLetter');
+    if (fileInput) fileInput.value = '';
+  };
+
+  // Handle edit member
+  const handleEdit = (member) => {
+    setEditingMember(member);
+    setFormData({
+      name: member.name,
+      phone: member.phone,
+      email: member.email,
+      currentPositionInYourRRA: member.currentPositionInYourRRA,
+      positionId: member.positionInERA?.id || '',
+      appointedDate: member.appointedDate ? member.appointedDate.split('T')[0] : '',
+      countryId: member.country?.id || '',
+      revenueAuthorityId: member.revenueAuthority?.id || '',
+      memberType: member.memberType
+    });
+    setViewMode('edit');
+    setError(null);
+    setSuccess(false);
+  };
+
+  // Handle delete member
+  const handleDelete = (member) => {
+    setMemberToDelete(member);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!memberToDelete) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`http://localhost:8080/api/committee-members/${memberToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete committee member');
+      }
+
+      setSuccess('Committee Member deleted successfully!');
+      fetchCommitteeMembers();
+      setShowDeleteModal(false);
+      setMemberToDelete(null);
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError(err.message || 'Failed to delete committee member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setMemberToDelete(null);
   };
 
   // Format display name from backend format
@@ -274,6 +386,7 @@ const CommitteeMembers = () => {
 
   // Switch to register mode
   const handleRegisterClick = () => {
+    resetForm();
     setViewMode('register');
     setError(null);
     setSuccess(false);
@@ -282,8 +395,49 @@ const CommitteeMembers = () => {
   // Switch back to list mode
   const handleBackToList = () => {
     setViewMode('list');
+    resetForm();
     setError(null);
     setSuccess(false);
+  };
+
+  // Render Delete Modal
+  const renderDeleteModal = () => {
+    if (!showDeleteModal) return null;
+
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content delete-modal">
+          <div className="modal-header">
+            <h3>Confirm Delete</h3>
+          </div>
+          <div className="modal-body">
+            <p>Are you sure you want to delete this committee member?</p>
+            <div className="member-details">
+              <strong>{memberToDelete?.name}</strong>
+              <br />
+              <span>{memberToDelete?.email}</span>
+            </div>
+            <p className="warning-text">This action cannot be undone.</p>
+          </div>
+          <div className="modal-actions">
+            <button 
+              className="btn btn-secondary" 
+              onClick={cancelDelete}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button 
+              className="btn btn-danger" 
+              onClick={confirmDelete}
+              disabled={loading}
+            >
+              {loading ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Render committee members list view
@@ -300,45 +454,71 @@ const CommitteeMembers = () => {
             className="action-btn add-btn"
             onClick={handleRegisterClick}
           >
-            Register New Member
+            + New Member
           </button>
         </div>
 
         {error && <div className="error">{error}</div>}
+        {success && <div className="success">{success}</div>}
         
         {members.length === 0 ? (
           <div className="no-data">No committee members have been registered yet.</div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Country</th>
-                <th>Current Position in RRA</th>
-                <th>Position in ERA</th>
-                <th>Revenue Authority</th>
-                <th>Member Type</th>
-                <th>Appointed Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map(member => (
-                <tr key={member.id}>
-                  <td>{member.name}</td>
-                  <td>{member.email}</td>
-                  <td>{member.phone}</td>
-                  <td>{member.country ? formatDisplayName(member.country.name) : 'N/A'}</td>
-                  <td>{member.currentPositionInYourRRA}</td>
-                  <td>{member.positionInERA ? formatDisplayName(member.positionInERA.positionName) : 'N/A'}</td>
-                  <td>{member.revenueAuthority ? formatDisplayName(member.revenueAuthority.authorityName) : 'N/A'}</td>
-                  <td>{formatDisplayName(member.memberType)}</td>
-                  <td>{new Date(member.appointedDate).toLocaleDateString()}</td>
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Country</th>
+                  <th>Current Position in RRA</th>
+                  <th>Position in ERA</th>
+                  <th>Revenue Authority</th>
+                  <th>Member Type</th>
+                  <th>Appointed Date</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {members.map(member => (
+                  <tr key={member.id}>
+                    <td>{member.name}</td>
+                    <td>{member.email}</td>
+                    <td>{member.phone}</td>
+                    <td>{member.country ? formatDisplayName(member.country.name) : 'N/A'}</td>
+                    <td>{member.currentPositionInYourRRA}</td>
+                    <td>{member.positionInERA ? formatDisplayName(member.positionInERA.positionName) : 'N/A'}</td>
+                    <td>{member.revenueAuthority ? formatDisplayName(member.revenueAuthority.authorityName) : 'N/A'}</td>
+                    <td>
+                      <span className={`member-type-badge ${member.memberType.toLowerCase()}`}>
+                        {formatDisplayName(member.memberType)}
+                      </span>
+                    </td>
+                    <td>{new Date(member.appointedDate).toLocaleDateString()}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          className="btn btn-edit"
+                          onClick={() => handleEdit(member)}
+                          title="Edit Member"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          className="btn btn-delete"
+                          onClick={() => handleDelete(member)}
+                          title="Delete Member"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     );
@@ -346,6 +526,8 @@ const CommitteeMembers = () => {
 
   // Render registration form view
   const renderRegistrationForm = () => {
+    const isEditMode = viewMode === 'edit';
+    
     return (
       <div className="registration-section">
         <div className="form-header">
@@ -353,13 +535,13 @@ const CommitteeMembers = () => {
             className="back-btn"
             onClick={handleBackToList}
           >
-            ← Back to Members List
+            ← Back
           </button>
-          <h3>Register Committee Member</h3>
+          <h3>{isEditMode ? 'Edit Committee Member' : 'Register Committee Member'}</h3>
         </div>
         
         {error && <div className="error">{error}</div>}
-        {success && <div className="success">Committee Member registered successfully!</div>}
+        {success && <div className="success">{success}</div>}
         
         <form className="registration-form" onSubmit={handleSubmit}>
           <div className="form-group">
@@ -421,8 +603,8 @@ const CommitteeMembers = () => {
               name="countryId"
               value={formData.countryId}
               onChange={handleChange}
-              required
-              disabled={loading}
+              required={!isEditMode}
+              disabled={loading || isEditMode}
             >
               <option value="">Select country</option>
               {countries.map(country => (
@@ -440,8 +622,8 @@ const CommitteeMembers = () => {
               name="revenueAuthorityId"
               value={formData.revenueAuthorityId}
               onChange={handleChange}
-              required
-              disabled={!formData.countryId || loading}
+              required={!isEditMode}
+              disabled={!formData.countryId || loading || isEditMode}
             >
               <option value="">Select revenue authority</option>
               {revenueAuthorities.map(authority => (
@@ -459,8 +641,8 @@ const CommitteeMembers = () => {
               name="positionId"
               value={formData.positionId}
               onChange={handleChange}
-              required
-              disabled={loading}
+              required={!isEditMode}
+              disabled={loading || isEditMode}
             >
               <option value="">Select position</option>
               {positions.map(position => (
@@ -501,25 +683,27 @@ const CommitteeMembers = () => {
             />
           </div>
           
-          <div className="form-group">
-            <label htmlFor="appointedLetter">Appointment Letter</label>
-            <input
-              type="file"
-              id="appointedLetter"
-              name="appointedLetter"
-              onChange={handleFileChange}
-              required
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            />
-            <small>Upload appointment letter (PDF, DOC, DOCX, JPG, JPEG, PNG)</small>
-          </div>
+          {!isEditMode && (
+            <div className="form-group">
+              <label htmlFor="appointedLetter">Appointment Letter</label>
+              <input
+                type="file"
+                id="appointedLetter"
+                name="appointedLetter"
+                onChange={handleFileChange}
+                required
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              />
+              <small>Upload appointment letter (PDF, DOC, DOCX, JPG, JPEG, PNG)</small>
+            </div>
+          )}
           
           <button 
             type="submit" 
             className="submit-btn"
             disabled={loading}
           >
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? (isEditMode ? 'Updating...' : 'Registering...') : (isEditMode ? 'Update' : 'Register')}
           </button>
         </form>
       </div>
@@ -529,6 +713,7 @@ const CommitteeMembers = () => {
   return (
     <div className="positions-section committee-section">
       {viewMode === 'list' ? renderMembersList() : renderRegistrationForm()}
+      {renderDeleteModal()}
     </div>
   );
 };
